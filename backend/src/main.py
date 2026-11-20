@@ -10,7 +10,7 @@ from .models import *
 from .schemas import *
 from .auth import current,writer,supervisor,verify,token
 from .common import pack,lock,add,audit
-from . import renewal_service as renewal,isolation_service as isolation,harvest_service as harvest,sharing_service as sharing
+from . import renewal_service as renewal,isolation_service as isolation,harvest_service as harvest,sharing_service as sharing,stocktake_service as stocktake
 from .middleware import Trace,Burst
 queue=redis.Redis.from_url(os.environ['REDIS_URL'],decode_responses=True)
 @asynccontextmanager
@@ -31,7 +31,20 @@ def login(d:Login,s=Depends(session)):
 def me(u=Depends(current)):return {'email':u.email,'role':u.role}
 @app.get('/archive')
 def archive(s=Depends(session),u=Depends(current)):
-    return {cls.__tablename__:[pack(x)for x in s.scalars(select(cls).order_by(cls.id))]for cls in (Accession,Lot,GerminationTest,Regeneration,Plot,Flowering,Pollination,Harvest,Distribution)}
+    return {cls.__tablename__:[pack(x)for x in s.scalars(select(cls).order_by(cls.id))]for cls in (Accession,Lot,GerminationTest,Regeneration,Plot,Flowering,Pollination,Harvest,Distribution,Stocktake,StockMovement)}
+@app.get('/stocktakes/risk')
+def stocktake_risk(s=Depends(session),u=Depends(current)):return stocktake.risk(s)
+@app.get('/lots/{id}/ledger')
+def lot_ledger(id:int,s=Depends(session),u=Depends(current)):return stocktake.ledger(s,id)
+@app.post('/stocktakes')
+def stocktake_open(d:StocktakeInput,s=Depends(session),u=Depends(writer)):
+    x=stocktake.open_count(s,d,u);s.commit();return x
+@app.post('/stocktakes/{id}/close')
+def stocktake_close(id:int,s=Depends(session),u=Depends(supervisor)):
+    x=stocktake.close(s,id,u);s.commit();return x
+@app.post('/lots/{id}/replenish')
+def lot_replenish(id:int,d:ReplenishInput,s=Depends(session),u=Depends(supervisor)):
+    x=stocktake.replenish(s,id,d,u);s.commit();return x
 @app.get('/audits')
 def audits(s=Depends(session),u=Depends(current)):return [pack(x)for x in s.scalars(select(Audit).order_by(Audit.id.desc()).limit(50))]
 @app.post('/accessions')
@@ -46,7 +59,7 @@ def accession_note(id:int,d:AccessionInput,s=Depends(session),u=Depends(supervis
 def lot(d:LotInput,s=Depends(session),u=Depends(writer)):
     lock(s,Accession,d.accession_id)
     if s.scalar(select(Lot.id).where(Lot.accession_id==d.accession_id)):raise HTTPException(409,'已有种质新代次必须经授粉收获回库建立，不能手工扩库存')
-    x=add(s,Lot(**d.model_dump()));audit(s,u,'首批种子入库 '+d.code);s.commit();return x
+    x=add(s,Lot(**d.model_dump()));stocktake.move(s,lock(s,Lot,x['id']),x['available'],'opening','首批入库');audit(s,u,'首批种子入库 '+d.code);s.commit();return x
 @app.post('/germination-tests')
 def test(d:TestInput,s=Depends(session),u=Depends(writer)):
     x=renewal.create_test(s,d,u);s.commit();return x

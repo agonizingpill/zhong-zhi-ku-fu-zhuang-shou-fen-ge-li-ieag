@@ -6,3 +6,4 @@ export const lotOptions=d=>d.lots.map(l=>`<option value="${l.id}">${esc(l.code)}
 export const regenOptions=(d,states=['issued'])=>d.regenerations.filter(r=>states.includes(r.state)).map(r=>`<option value="${r.id}">${esc(r.code)} / ${r.issued}粒</option>`).join('');
 export const empty=text=>`<div class="empty">${esc(text)}</div>`;
 export const flowerBand=(f,d)=>{let p=d.plots.find(p=>p.id===f.plot_id),r=d.regenerations.find(r=>r.id===f.regeneration_id);return `<div class="flowerband"><strong>${esc(p.code)}</strong><span>${esc(r.code)}</span><i></i><b>${f.start} → ${f.end}</b><small>${esc(f.state)}</small></div>`};
+export const riskBadge=r=>`<span class="risk ${r.risk_level}">${r.risk_level==='unassessed'?'待抽盘':r.risk_level==='high'?'高风险':r.risk_level==='medium'?'中风险':'低风险'}${r.risk_score!=null?' · '+r.risk_score:''}</span>`;

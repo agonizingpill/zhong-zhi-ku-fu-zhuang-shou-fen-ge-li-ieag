@@ -59,3 +59,11 @@ class DistributionInput(BaseModel):
     recipient:str=Field(min_length=2,max_length=100)
     seeds:int=Field(ge=1,le=10000)
     purpose:str=Field(min_length=5,max_length=300)
+class StocktakeInput(BaseModel):
+    lot_id:int
+    code:str=Field(min_length=3,max_length=60)
+    actual:int=Field(ge=0,le=1000000)
+    note:str=Field(default='',max_length=300)
+class ReplenishInput(BaseModel):
+    seeds:int=Field(ge=1,le=1000000)
+    note:str=Field(default='',max_length=300)

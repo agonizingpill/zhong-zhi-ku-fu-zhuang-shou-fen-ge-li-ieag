@@ -1,7 +1,7 @@
 from fastapi import HTTPException
 from sqlalchemy import select
 from .models import Accession,Lot,Regeneration,Pollination,Harvest,Flowering
-from .common import lock,pack,add,audit
+from .common import lock,pack,add,audit,move
 
 def save(s,d,u,id=None):
     r=lock(s,Regeneration,d.regeneration_id)
@@ -24,5 +24,6 @@ def store(s,id,u):
     if h.moisture>12:raise HTTPException(409,'种子含水率须≤12%，请干燥复测后回库')
     pollen=s.scalar(select(Pollination).where(Pollination.regeneration_id==r.id));f=s.scalar(select(Flowering).where(Flowering.regeneration_id==r.id))
     child=Lot(accession_id=parent.accession_id,code=h.code+'-G'+str(parent.generation+1),generation=parent.generation+1,available=h.seeds,stored_months=0,temperature=-18,initial_rate=parent.initial_rate,parent_lot_id=parent.id);s.add(child);s.flush()
+    move(s,child,h.seeds,'harvest',h.code)
     h.lineage={'parent_lot':pack(parent),'father_lot':pack(s.get(Lot,pollen.father_lot_id)),'pollination':pack(pollen),'flowering':pack(f),'vitality':r.vitality_snapshot,'initial_rate_note':'Inherited planning prior; offspring requires independent germination test before sharing'}
     h.state='stored';h.offspring_lot_id=child.id;r.state='harvested';f.state='released';audit(s,u,'主管回库继承G'+str(child.generation)+' '+h.code);return pack(h)

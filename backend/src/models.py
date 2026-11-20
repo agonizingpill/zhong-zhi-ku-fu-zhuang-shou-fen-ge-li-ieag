@@ -1,4 +1,5 @@
-from sqlalchemy import String,Integer,Float,JSON,ForeignKey,CheckConstraint
+from datetime import datetime
+from sqlalchemy import String,Integer,Float,JSON,ForeignKey,CheckConstraint,DateTime,UniqueConstraint
 from sqlalchemy.orm import Mapped,mapped_column
 from .db import Base
 class User(Base):
@@ -92,6 +93,36 @@ class Distribution(Base):
     purpose:Mapped[str]=mapped_column(String(300))
     state:Mapped[str]=mapped_column(String(20),default='requested')
     reserve_snapshot:Mapped[dict|None]=mapped_column(JSON,nullable=True)
+class StockMovement(Base):
+    '''Per-lot append-only quantity ledger. seq is the position quoted when a bag is counted.'''
+    __tablename__='stock_movements'
+    __table_args__=(UniqueConstraint('lot_id','seq'),)
+    id:Mapped[int]=mapped_column(primary_key=True)
+    lot_id:Mapped[int]=mapped_column(ForeignKey('lots.id'))
+    seq:Mapped[int]=mapped_column(Integer)
+    delta:Mapped[int]=mapped_column(Integer)
+    kind:Mapped[str]=mapped_column(String(30))
+    ref:Mapped[str]=mapped_column(String(60),default='')
+    created_at:Mapped[datetime]=mapped_column(DateTime,default=datetime.utcnow)
+class Stocktake(Base):
+    __tablename__='stocktakes'
+    id:Mapped[int]=mapped_column(primary_key=True)
+    code:Mapped[str]=mapped_column(String(60),unique=True)
+    lot_id:Mapped[int]=mapped_column(ForeignKey('lots.id'))
+    state:Mapped[str]=mapped_column(String(20),default='open')
+    book_qty:Mapped[int]=mapped_column(Integer)
+    actual:Mapped[int]=mapped_column(Integer)
+    count_seq:Mapped[int]=mapped_column(Integer)
+    note:Mapped[str]=mapped_column(String(300),default='')
+    opened_by:Mapped[str]=mapped_column(String(100),default='')
+    closed_by:Mapped[str|None]=mapped_column(String(100),nullable=True)
+    post_delta:Mapped[int|None]=mapped_column(Integer,nullable=True)
+    closing_available:Mapped[int|None]=mapped_column(Integer,nullable=True)
+    adjustment:Mapped[int|None]=mapped_column(Integer,nullable=True)
+    expected_after:Mapped[int|None]=mapped_column(Integer,nullable=True)
+    reconciled:Mapped[bool|None]=mapped_column(nullable=True)
+    created_at:Mapped[datetime]=mapped_column(DateTime,default=datetime.utcnow)
+    closed_at:Mapped[datetime|None]=mapped_column(DateTime,nullable=True)
 class Audit(Base):
     __tablename__='audits'
     id:Mapped[int]=mapped_column(primary_key=True)

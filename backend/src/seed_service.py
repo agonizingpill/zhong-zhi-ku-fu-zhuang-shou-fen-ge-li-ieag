@@ -21,4 +21,11 @@ def seed():
             if not s.scalar(select(Plot).where(Plot.code==code)):s.add(Plot(code=code,row=i//6,position=i%6,capacity=250))
         s.flush();lot=s.scalar(select(Lot).where(Lot.code=='QH-021-G3'))
         if not s.scalar(select(GerminationTest).where(GerminationTest.code=='GT-SEED-80')):s.add(GerminationTest(lot_id=lot.id,code='GT-SEED-80',sampled=100,germinated=80,state='recorded'))
-        s.commit();return {cls.__tablename__:s.scalar(select(func.count()).select_from(cls))for cls in (User,Accession,Lot,GerminationTest,Regeneration,Plot,Flowering,Pollination,Harvest,Distribution)}
+        # 每批一笔期初流水，之后所有出入库只追加，不覆盖历史。
+        for item in s.scalars(select(Lot)):
+            if not s.scalar(select(StockMovement).where(StockMovement.lot_id==item.id)):s.add(StockMovement(lot_id=item.id,seq=1,delta=item.available,kind='opening',ref='入藏'))
+        # 历史盘点（账实差）只作为风险先验，已结案且不再改动现有余额。
+        for code,book,actual in [('ST-LEGACY-01',1000,980),('ST-LEGACY-02',980,975)]:
+            if not s.scalar(select(Stocktake).where(Stocktake.code==code)):
+                s.add(Stocktake(code=code,lot_id=lot.id,state='closed',book_qty=book,actual=actual,count_seq=0,note='历史盘点账实差',opened_by='supervisor@qinghe.demo',closed_by='supervisor@qinghe.demo',post_delta=0,closing_available=actual,adjustment=0,expected_after=actual,reconciled=True))
+        s.commit();return {cls.__tablename__:s.scalar(select(func.count()).select_from(cls))for cls in (User,Accession,Lot,GerminationTest,Regeneration,Plot,Flowering,Pollination,Harvest,Distribution,Stocktake,StockMovement)}
